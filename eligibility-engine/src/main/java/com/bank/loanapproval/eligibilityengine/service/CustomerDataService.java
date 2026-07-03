@@ -11,7 +11,7 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class CustomerDataService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     public CustomerProfile getCustomerProfile(Long customerId) {
         String url = "http://customer-service/api/customers/id/" + customerId;

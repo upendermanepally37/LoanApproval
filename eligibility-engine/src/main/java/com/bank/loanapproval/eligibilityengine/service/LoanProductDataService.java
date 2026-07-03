@@ -11,7 +11,7 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class LoanProductDataService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     public LoanProductInfo getLoanProductInfo(Long loanProductId) {
         String url = "http://loan-product-service/api/loan-products/" + loanProductId;
