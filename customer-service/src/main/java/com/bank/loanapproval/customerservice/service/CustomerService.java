@@ -4,6 +4,7 @@ import com.bank.loanapproval.common.enumeration.KYCStatus;
 import com.bank.loanapproval.common.exception.BusinessException;
 import com.bank.loanapproval.common.exception.ResourceNotFoundException;
 import com.bank.loanapproval.common.exception.ValidationException;
+import com.bank.loanapproval.common.util.NumberGenerator;
 import com.bank.loanapproval.customerservice.dto.CustomerRequest;
 import com.bank.loanapproval.customerservice.dto.CustomerResponse;
 import com.bank.loanapproval.customerservice.mapper.CustomerMapper;
@@ -28,6 +29,7 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
+    private final NumberGenerator numberGenerator;
 
     @Transactional
     public CustomerResponse createCustomer(CustomerRequest request) {
@@ -36,7 +38,7 @@ public class CustomerService {
         validateCustomerRequest(request);
 
         Customer customer = customerMapper.toEntity(request);
-        customer.setCustomerNumber(generateCustomerNumber());
+        customer.setCustomerNumber(numberGenerator.generateCustomerNumber());
         customer.setKycStatus(KYCStatus.NOT_STARTED);
         customer.setActive(true);
 
@@ -148,11 +150,5 @@ public class CustomerService {
         if (currentStatus == KYCStatus.VERIFIED && newStatus != KYCStatus.VERIFIED) {
             throw new BusinessException("Cannot change KYC status from VERIFIED to another status");
         }
-    }
-
-    private String generateCustomerNumber() {
-        String prefix = "CUST";
-        long timestamp = System.currentTimeMillis();
-        return prefix + String.valueOf(timestamp).substring(String.valueOf(timestamp).length() - 7);
     }
 }

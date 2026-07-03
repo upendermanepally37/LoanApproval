@@ -1,9 +1,11 @@
 package com.bank.loanapproval.loanapplicationservice.service;
 
 import com.bank.loanapproval.common.enumeration.ApplicationStatus;
+import com.bank.loanapproval.common.event.EventPublisher;
 import com.bank.loanapproval.common.exception.BusinessException;
 import com.bank.loanapproval.common.exception.ResourceNotFoundException;
 import com.bank.loanapproval.common.exception.ValidationException;
+import com.bank.loanapproval.common.util.NumberGenerator;
 import com.bank.loanapproval.loanapplicationservice.dto.*;
 import com.bank.loanapproval.loanapplicationservice.mapper.LoanApplicationMapper;
 import com.bank.loanapproval.loanapplicationservice.repository.*;
@@ -14,9 +16,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,7 +37,9 @@ public class LoanApplicationService {
     private final EligibilityCheckRepository eligibilityCheckRepository;
     private final ApplicationStatusHistoryRepository statusHistoryRepository;
     private final LoanApplicationMapper loanApplicationMapper;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final NumberGenerator numberGenerator;
+    private final EventPublisher eventPublisher;
+    private final RestTemplate restTemplate;
 
     @Transactional
     public LoanApplicationResponse createLoanApplication(LoanApplicationRequest request) {
@@ -48,7 +52,7 @@ public class LoanApplicationService {
         validateLoanRequestAgainstProduct(request, loanProduct, customer);
 
         LoanApplication loanApplication = loanApplicationMapper.toEntity(request);
-        loanApplication.setApplicationNumber(generateApplicationNumber());
+        loanApplication.setApplicationNumber(numberGenerator.generateLoanApplicationNumber());
         loanApplication.setCustomer(customer);
         loanApplication.setLoanProduct(loanProduct);
         loanApplication.setStatus(ApplicationStatus.DRAFT);
@@ -57,7 +61,7 @@ public class LoanApplicationService {
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
         log.info("Loan application created successfully with number: {}", savedApplication.getApplicationNumber());
 
-        publishApplicationEvent("application.created", savedApplication);
+        eventPublisher.publishEvent("loan-application-events", "application.created", savedApplication);
         return loanApplicationMapper.toResponse(savedApplication);
     }
 
@@ -103,7 +107,7 @@ public class LoanApplicationService {
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
         log.info("Loan application submitted successfully: {}", applicationNumber);
 
-        publishApplicationEvent("application.submitted", savedApplication);
+        eventPublisher.publishEvent("loan-application-events", "application.submitted", savedApplication);
         return loanApplicationMapper.toResponse(savedApplication);
     }
 
@@ -133,7 +137,7 @@ public class LoanApplicationService {
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
         log.info("Loan application status updated successfully: {}", applicationNumber);
 
-        publishApplicationEvent("application.status.updated", savedApplication);
+        eventPublisher.publishEvent("loan-application-events", "application.status.updated", savedApplication);
         return loanApplicationMapper.toResponse(savedApplication);
     }
 
@@ -168,7 +172,7 @@ public class LoanApplicationService {
         loanApplicationRepository.save(loanApplication);
         log.info("Loan application withdrawn successfully: {}", applicationNumber);
 
-        publishApplicationEvent("application.withdrawn", loanApplication);
+        eventPublisher.publishEvent("loan-application-events", "application.withdrawn", loanApplication);
     }
 
     @Transactional
@@ -209,25 +213,17 @@ public class LoanApplicationService {
     }
 
     private void validateLoanApplicationRequest(LoanApplicationRequest request) {
-        if (loanApplicationRepository.existsByApplicationNumber(generateApplicationNumber())) {
+        if (loanApplicationRepository.existsByApplicationNumber(numberGenerator.generateLoanApplicationNumber())) {
             throw new ValidationException("Application number generation conflict");
         }
     }
 
     private Customer fetchCustomer(Long customerId) {
-        return fetchFromService("customer-service", "/api/customers/id/" + customerId, Customer.class);
+        return restTemplate.getForObject("http://customer-service/api/customers/id/" + customerId, Customer.class);
     }
 
     private LoanProduct fetchLoanProduct(Long loanProductId) {
-        return fetchFromService("loan-product-service", "/api/loan-products/" + loanProductId, LoanProduct.class);
-    }
-
-    private <T> T fetchFromService(String serviceName, String path, Class<T> responseType) {
-        return restTemplate().getForObject("http://" + serviceName + path, responseType);
-    }
-
-    private org.springframework.web.client.RestTemplate restTemplate() {
-        return new org.springframework.web.client.RestTemplate();
+        return restTemplate.getForObject("http://loan-product-service/api/loan-products/" + loanProductId, LoanProduct.class);
     }
 
     private void validateLoanRequestAgainstProduct(LoanApplicationRequest request, LoanProduct product, Customer customer) {
@@ -282,19 +278,5 @@ public class LoanApplicationService {
         LocalDate startDate = LocalDate.now().plusMonths(1);
         loanApplication.setRepaymentStartDate(startDate);
         loanApplication.setRepaymentEndDate(startDate.plusMonths(tenure));
-    }
-
-    private String generateApplicationNumber() {
-        String prefix = "LA";
-        long timestamp = System.currentTimeMillis();
-        return prefix + String.valueOf(timestamp).substring(String.valueOf(timestamp).length() - 10);
-    }
-
-    private void publishApplicationEvent(String eventType, LoanApplication loanApplication) {
-        try {
-            kafkaTemplate.send("loan-application-events", eventType, loanApplication);
-        } catch (Exception e) {
-            log.error("Failed to publish event: {}", eventType, e);
-        }
     }
 }

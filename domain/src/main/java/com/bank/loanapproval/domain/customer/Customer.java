@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
@@ -113,16 +114,19 @@ public class Customer {
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     @Builder.Default
     private Set<Address> addresses = new HashSet<>();
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     @Builder.Default
     private Set<EmploymentDetails> employmentDetails = new HashSet<>();
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     @Builder.Default
     private Set<Document> documents = new HashSet<>();
 
