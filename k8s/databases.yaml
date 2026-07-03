@@ -1,0 +1,230 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: customerdb-pvc
+  namespace: loan-approval
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customerdb
+  namespace: loan-approval
+  labels:
+    app: customerdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customerdb
+  template:
+    metadata:
+      labels:
+        app: customerdb
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: customerdb
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-password
+        volumeMounts:
+        - name: customerdb-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: customerdb-storage
+        persistentVolumeClaim:
+          claimName: customerdb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customerdb-service
+  namespace: loan-approval
+  labels:
+    app: customerdb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: customerdb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loanproductdb-pvc
+  namespace: loan-approval
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loanproductdb
+  namespace: loan-approval
+  labels:
+    app: loanproductdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loanproductdb
+  template:
+    metadata:
+      labels:
+        app: loanproductdb
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: loanproductdb
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-password
+        volumeMounts:
+        - name: loanproductdb-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: loanproductdb-storage
+        persistentVolumeClaim:
+          claimName: loanproductdb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loanproductdb-service
+  namespace: loan-approval
+  labels:
+    app: loanproductdb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: loanproductdb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loanapplicationdb-pvc
+  namespace: loan-approval
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loanapplicationdb
+  namespace: loan-approval
+  labels:
+    app: loanapplicationdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loanapplicationdb
+  template:
+    metadata:
+      labels:
+        app: loanapplicationdb
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: loanapplicationdb
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-password
+        volumeMounts:
+        - name: loanapplicationdb-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: loanapplicationdb-storage
+        persistentVolumeClaim:
+          claimName: loanapplicationdb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loanapplicationdb-service
+  namespace: loan-approval
+  labels:
+    app: loanapplicationdb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: loanapplicationdb

@@ -1,0 +1,205 @@
+version: '3.8'
+
+services:
+  # PostgreSQL databases
+  customerdb:
+    image: postgres:15-alpine
+    container_name: loan-customer-db
+    environment:
+      POSTGRES_DB: customerdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - customerdb-data:/var/lib/postgresql/data
+    networks:
+      - loan-network
+
+  loanproductdb:
+    image: postgres:15-alpine
+    container_name: loan-product-db
+    environment:
+      POSTGRES_DB: loanproductdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - loanproductdb-data:/var/lib/postgresql/data
+    networks:
+      - loan-network
+
+  loanapplicationdb:
+    image: postgres:15-alpine
+    container_name: loan-application-db
+    environment:
+      POSTGRES_DB: loanapplicationdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - loanapplicationdb-data:/var/lib/postgresql/data
+    networks:
+      - loan-network
+
+  # Kafka and Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: loan-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - loan-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: loan-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - loan-network
+
+  # Eureka Server
+  eureka-server:
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile
+    container_name: loan-eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - loan-network
+    depends_on:
+      - customerdb
+
+  # Config Server
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    container_name: loan-config-server
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - loan-network
+    depends_on:
+      - eureka-server
+
+  # Customer Service
+  customer-service:
+    build:
+      context: ./customer-service
+      dockerfile: Dockerfile
+    container_name: loan-customer-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://customerdb:5432/customerdb
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      KAFKA_SERVERS: kafka:9092
+    networks:
+      - loan-network
+    depends_on:
+      - customerdb
+      - eureka-server
+      - kafka
+
+  # Loan Product Service
+  loan-product-service:
+    build:
+      context: ./loan-product-service
+      dockerfile: Dockerfile
+    container_name: loan-product-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://loanproductdb:5432/loanproductdb
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      KAFKA_SERVERS: kafka:9092
+    networks:
+      - loan-network
+    depends_on:
+      - loanproductdb
+      - eureka-server
+      - kafka
+
+  # Loan Application Service
+  loan-application-service:
+    build:
+      context: ./loan-application-service
+      dockerfile: Dockerfile
+    container_name: loan-application-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://loanapplicationdb:5432/loanapplicationdb
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      KAFKA_SERVERS: kafka:9092
+    networks:
+      - loan-network
+    depends_on:
+      - loanapplicationdb
+      - eureka-server
+      - kafka
+
+  # Eligibility Engine
+  eligibility-engine:
+    build:
+      context: ./eligibility-engine
+      dockerfile: Dockerfile
+    container_name: loan-eligibility-engine
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://loanapplicationdb:5432/loanapplicationdb
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      KAFKA_SERVERS: kafka:9092
+    networks:
+      - loan-network
+    depends_on:
+      - loanapplicationdb
+      - eureka-server
+      - kafka
+      - customer-service
+      - loan-product-service
+
+volumes:
+  customerdb-data:
+  loanproductdb-data:
+  loanapplicationdb-data:
+
+networks:
+  loan-network:
+    driver: bridge

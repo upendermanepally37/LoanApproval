@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loan-config
+  namespace: loan-approval
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  EUREKA_SERVER_URL: "http://eureka-service.loan-approval.svc.cluster.local:8761/eureka"
+  KAFKA_SERVERS: "kafka-service.loan-approval.svc.cluster.local:9092"

@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eligibility-engine
+  namespace: loan-approval
+  labels:
+    app: eligibility-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: eligibility-engine
+  template:
+    metadata:
+      labels:
+        app: eligibility-engine
+    spec:
+      containers:
+      - name: eligibility-engine
+        image: loan-approval/eligibility-engine:latest
+        ports:
+        - containerPort: 8084
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: loan-config
+              key: SPRING_PROFILES_ACTIVE
+        - name: DB_URL
+          value: "jdbc:postgresql://loanapplicationdb-service.loan-approval.svc.cluster.local:5432/loanapplicationdb"
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: loan-secrets
+              key: db-password
+        - name: EUREKA_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: loan-config
+              key: EUREKA_SERVER_URL
+        - name: KAFKA_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: loan-config
+              key: KAFKA_SERVERS
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eligibility-engine
+  namespace: loan-approval
+  labels:
+    app: eligibility-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8084
+    targetPort: 8084
+  selector:
+    app: eligibility-engine
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: eligibility-engine-hpa
+  namespace: loan-approval
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: eligibility-engine
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
