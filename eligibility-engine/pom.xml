@@ -114,6 +114,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- H2 for local dev -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

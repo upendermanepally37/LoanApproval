@@ -3,8 +3,8 @@ package com.bank.loanapproval.eligibilityengine.service;
 import com.bank.loanapproval.common.enumeration.EligibilityStatus;
 import com.bank.loanapproval.eligibilityengine.dto.*;
 import com.bank.loanapproval.eligibilityengine.rule.EligibilityRule;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +15,22 @@ import java.util.List;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EligibilityEngineService {
 
     private final List<EligibilityRule> eligibilityRules;
     private final CustomerDataService customerDataService;
     private final LoanProductDataService loanProductDataService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Autowired(required = false)
+    private KafkaTemplate<String, Object> kafkaTemplate;
+
+    public EligibilityEngineService(List<EligibilityRule> eligibilityRules,
+                                    CustomerDataService customerDataService,
+                                    LoanProductDataService loanProductDataService) {
+        this.eligibilityRules = eligibilityRules;
+        this.customerDataService = customerDataService;
+        this.loanProductDataService = loanProductDataService;
+    }
 
     public EligibilityEvaluationResponse evaluateEligibility(EligibilityEvaluationRequest request) {
         log.info("Evaluating eligibility for customer: {} and loan product: {}", 
@@ -135,6 +144,10 @@ public class EligibilityEngineService {
     }
 
     private void publishEligibilityResult(EligibilityEvaluationRequest request, EligibilityEvaluationResponse response) {
+        if (kafkaTemplate == null) {
+            log.debug("Kafka not available - skipping eligibility result publish for customer: {}", request.getCustomerId());
+            return;
+        }
         try {
             kafkaTemplate.send("eligibility-results", request.getCustomerId().toString(), response);
         } catch (Exception e) {
